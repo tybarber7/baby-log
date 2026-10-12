@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Baby Log">
+<title>Baby Log</title>
+<style>
+:root{--bg:#faf6f1;--card:#fff;--ink:#2b2523;--mute:#8a7f78;--line:#eee5dc;--acc:#d9728a;--acc2:#6b9bd1;--ok:#5aa17f;--warn:#c9944a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171414;--card:#242020;--ink:#f2ebe6;--mute:#9a8f88;--line:#352f2d;--acc:#e48aa0;--acc2:#82aee0}}
+:root[data-theme="dark"]{--bg:#171414;--card:#242020;--ink:#f2ebe6;--mute:#9a8f88;--line:#352f2d;--acc:#e48aa0;--acc2:#82aee0}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 16px 40px}
+h1{font-size:26px;margin:6px 0 2px}
+.sub{color:var(--mute);margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+.row{display:flex;gap:10px}
+button{font:inherit;border:0;border-radius:16px;padding:16px 10px;color:#fff;font-weight:600;cursor:pointer;flex:1}
+button:active{transform:scale(.97)}
+.L{background:var(--acc2)}.R{background:var(--acc)}.ok{background:var(--ok)}.gray{background:var(--line);color:var(--ink)}
+.big{font-size:19px;padding:22px 10px}
+.timer{font-size:46px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums;margin:2px 0 10px}
+.side{opacity:.45;display:flex;flex-direction:column;gap:4px;align-items:center}
+.side.on{opacity:1;box-shadow:0 0 0 4px color-mix(in srgb,currentColor 0%,transparent),0 0 0 3px var(--ink) inset}
+.side small{font-weight:500;font-size:15px;font-variant-numeric:tabular-nums}
+h2{font-size:15px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em;margin:20px 4px 8px}
+.item{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.item:last-child{border:0}
+.t{font-weight:600}.m{color:var(--mute);font-size:15px}
+.badge{display:inline-block;font-size:13px;padding:2px 8px;border-radius:99px;background:var(--line);margin-left:6px}
+.link{background:none;color:var(--acc);padding:8px;flex:none;font-weight:600}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:9}
+.overlay.show{display:flex}
+.sheet{background:var(--card);width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));max-height:92%;overflow:auto}
+label{display:block;font-size:14px;color:var(--mute);margin:12px 0 4px}
+input,textarea{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{flex:none;background:var(--line);color:var(--ink);padding:10px 14px;border-radius:99px;font-weight:500}
+.chip.sel{background:var(--ink);color:var(--bg)}
+.empty{color:var(--mute);text-align:center;padding:18px 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Baby Log</h1>
+  <p class="sub" id="since">&nbsp;</p>
+
+  <div class="card" id="startCard">
+    <div class="row">
+      <button class="L big" onclick="startFeed('L')">Start<br>Left</button>
+      <button class="R big" onclick="startFeed('R')">Start<br>Right</button>
+    </div>
+    <p class="m" id="hint" style="margin:10px 2px 0"></p>
+  </div>
+
+  <div class="card" id="activeCard" hidden>
+    <div class="timer" id="total">0:00</div>
+    <div class="row">
+      <button class="L side" id="bL" onclick="toggleSide('L')">Left<small id="tL">0:00</small></button>
+      <button class="R side" id="bR" onclick="toggleSide('R')">Right<small id="tR">0:00</small></button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="ok" onclick="finishFeed()">Finish</button>
+      <button class="gray" onclick="cancelFeed()">Cancel</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="m" style="margin-bottom:8px">Log a diaper now</div>
+    <div class="row">
+      <button class="gray" onclick="quickDiaper('Wet')">Wet</button>
+      <button class="gray" onclick="quickDiaper('Poopy')">Poopy</button>
+      <button class="gray" onclick="quickDiaper('Wet + poopy')">Both</button>
+    </div>
+  </div>
+
+  <div class="row" style="gap:0;flex-wrap:wrap">
+    <button class="link" onclick="openSheet(null)">+ Add past entry</button>
+    <button class="link" onclick="openImport()">Import notes</button>
+    <button class="link" onclick="copyText()" id="copyBtn">Copy as text</button>
+  </div>
+
+  <div id="history"></div>
+</main>
+
+<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet">
+    <h2 id="sheetTitle" style="margin-top:0">Entry</h2>
+    <label>Start time</label><input type="datetime-local" id="fStart">
+    <div class="row" style="gap:10px">
+      <div style="flex:1"><label>Left (min)</label><input type="number" inputmode="numeric" min="0" id="fL"></div>
+      <div style="flex:1"><label>Right (min)</label><input type="number" inputmode="numeric" min="0" id="fR"></div>
+    </div>
+    <label>Diaper</label>
+    <div class="chips" id="chips"></div>
+    <label>Notes (optional)</label><textarea id="fNote" rows="2"></textarea>
+    <div class="row" style="margin-top:16px">
+      <button class="ok" onclick="saveSheet()">Save</button>
+      <button class="gray" onclick="closeSheet()">Close</button>
+    </div>
+    <button class="link" id="delBtn" style="width:100%;color:#c0463f;margin-top:6px" onclick="delEntry()">Delete entry</button>
+  </div>
+</div>
+
+<div class="overlay" id="ov2" onclick="if(event.target===this)closeImport()">
+  <div class="sheet">
+    <h2 style="margin-top:0">Import notes</h2>
+    <p class="m" style="margin:0 0 8px">Copy her notes from the Notes app, paste them here, and check the preview.</p>
+    <textarea id="iText" rows="6" placeholder="Paste notes here" oninput="parseImport()"></textarea>
+    <input type="file" id="iFile" accept=".txt,text/plain" style="margin-top:8px">
+    <label>Notes are listed</label>
+    <div class="chips">
+      <button class="chip" data-k="o" data-v="old" onclick="setOpt('o','old')">Oldest first</button>
+      <button class="chip" data-k="o" data-v="new" onclick="setOpt('o','new')">Newest first</button>
+    </div>
+    <label>Date of the first entry (used if the notes have no dates)</label>
+    <input type="date" id="iDate" onchange="parseImport()">
+    <label>First entry time is</label>
+    <div class="chips">
+      <button class="chip" data-k="a" data-v="AM" onclick="setOpt('a','AM')">AM</button>
+      <button class="chip" data-k="a" data-v="PM" onclick="setOpt('a','PM')">PM</button>
+    </div>
+    <label>Preview</label>
+    <div id="iPrev" class="m"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="ok" id="iGo" onclick="doImport()">Import</button>
+      <button class="gray" onclick="closeImport()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY='babylog.v1';
+let S={entries:[],active:null};
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const $=id=>document.getElementById(id);
+const DIAPERS=['','Wet','Poopy','Wet + poopy'];
+const fmtT=ts=>new Date(ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+const fmtD=ts=>new Date(ts).toLocaleDateString([],{weekday:'long',month:'short',day:'numeric'});
+const mmss=ms=>{const s=Math.floor(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const loc=ts=>{const d=new Date(ts-new Date(ts).getTimezoneOffset()*60000);return d.toISOString().slice(0,16)};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const bum=d=>d==='Wet'?'Wet bum':d==='Poopy'?'Poopy bum':d==='Wet + poopy'?'Wet and poopy bum':'';
+
+/* ---- live feeding session ---- */
+function elapsed(side){const a=S.active;if(!a)return 0;const base=side==='L'?a.l:a.r;return base+(a.side===side?Date.now()-a.since:0)}
+function startFeed(side){S.active={start:Date.now(),side,since:Date.now(),l:0,r:0};save();render()}
+function toggleSide(side){const a=S.active;if(!a)return;
+  if(a.side){if(a.side==='L')a.l+=Date.now()-a.since;else a.r+=Date.now()-a.since}
+  if(a.side===side){a.side=null}else{a.side=side;a.since=Date.now()}
+  save();tick();}
+function cancelFeed(){if(confirm('Discard this feeding?')){S.active=null;save();render()}}
+function finishFeed(){const a=S.active;if(!a)return;
+  const l=elapsed('L'),r=elapsed('R');
+  const toMin=ms=>ms<=0?0:Math.max(1,Math.round(ms/60000));
+  S.active=null;save();render();
+  openSheet({id:null,type:'feed',start:a.start,left:toMin(l),right:toMin(r),diaper:'',note:''},true);}
+
+/* ---- sheet ---- */
+let editing=null,chipVal='';
+function setChip(v){chipVal=v;[...$('chips').children].forEach(c=>c.classList.toggle('sel',c.dataset.v===v))}
+function openSheet(e,isNew){
+  editing=e||{id:null,type:'feed',start:Date.now(),left:0,right:0,diaper:'',note:''};
+  $('chips').innerHTML=DIAPERS.map(v=>`<button class="chip" data-v="${v}" onclick="setChip('${v}')">${v||'None'}</button>`).join('');
+  $('fStart').value=loc(editing.start);
+  $('fL').value=editing.type==='feed'?editing.left:'';
+  $('fR').value=editing.type==='feed'?editing.right:'';
+  $('fNote').value=editing.note||'';
+  setChip(editing.diaper||'');
+  $('sheetTitle').textContent=editing.id?'Edit entry':(isNew?'Save feeding':'Add entry');
+  $('delBtn').style.display=editing.id?'block':'none';
+  $('ov').classList.add('show');
+}
+function closeSheet(){$('ov').classList.remove('show');editing=null}
+function saveSheet(){
+  const start=new Date($('fStart').value).getTime()||Date.now();
+  const l=Math.max(0,parseInt($('fL').value)||0),r=Math.max(0,parseInt($('fR').value)||0);
+  const isFeed=(l+r>0)||(editing.type==='feed'&&!editing.id&&false)||(editing.type==='feed'&&editing.id);
+  const type=(l+r>0||(editing.type==='feed'&&editing.id&&editing.left+editing.right>0))?'feed':(chipVal?'diaper':'feed');
+  const e={id:editing.id||uid(),type,start,left:l,right:r,diaper:chipVal,note:$('fNote').value.trim()};
+  if(type==='feed')e.end=start+(l+r)*60000;
+  const i=S.entries.findIndex(x=>x.id===e.id);
+  if(i>=0)S.entries[i]=e;else S.entries.push(e);
+  save();closeSheet();render();
+}
+function delEntry(){if(!editing||!editing.id)return;if(!confirm('Delete this entry?'))return;
+  S.entries=S.entries.filter(x=>x.id!==editing.id);save();closeSheet();render()}
+function quickDiaper(v){S.entries.push({id:uid(),type:'diaper',start:Date.now(),left:0,right:0,diaper:v,note:''});save();render()}
+
+/* ---- render ---- */
+function sorted(){return S.entries.slice().sort((a,b)=>b.start-a.start)}
+function renderSince(){
+  const f=sorted().find(e=>e.type==='feed');
+  if(!f){$('since').textContent='No feedings logged yet';return}
+  const m=Math.floor((Date.now()-f.start)/60000),h=Math.floor(m/60);
+  $('since').textContent='Last feeding started '+(h?h+'h ':'')+(m%60)+'m ago';
+}
+function render(){
+  const a=S.active;
+  $('startCard').hidden=!!a;$('activeCard').hidden=!a;
+  const f=sorted().find(e=>e.type==='feed');
+  $('hint').textContent=f?`Last feeding: Left ${f.left} min · Right ${f.right} min`:'Tap a side to start the timer';
+  renderSince();
+  const list=sorted();
+  if(!list.length){$('history').innerHTML='<div class="empty">Nothing logged yet.</div>';tick();return}
+  let html='',day='';
+  for(const e of list){
+    const d=fmtD(e.start);
+    if(d!==day){if(day)html+='</div>';day=d;html+=`<h2>${d}</h2><div class="card" style="padding:4px 16px">`}
+    const main=e.type==='feed'?`${fmtT(e.start)} – ${fmtT(e.end||e.start)}`:`${fmtT(e.start)} · Diaper`;
+    const sub=e.type==='feed'?`Left ${e.left} min · Right ${e.right} min`:(e.note||'');
+    html+=`<div class="item" onclick="openSheet(S.entries.find(x=>x.id==='${e.id}'))"><div><div class="t">${main}</div><div class="m">${sub}${e.type==='feed'&&e.note?' · '+esc(e.note):''}</div></div><div>${e.diaper?`<span class="badge">${e.diaper}</span>`:''}</div></div>`;
+  }
+  $('history').innerHTML=html+'</div>';tick();
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function tick(){
+  const a=S.active;if(!a)return;
+  $('tL').textContent=mmss(elapsed('L'));$('tR').textContent=mmss(elapsed('R'));
+  $('total').textContent=mmss(elapsed('L')+elapsed('R'));
+  $('bL').classList.toggle('on',a.side==='L');$('bR').classList.toggle('on',a.side==='R');
+}
+setInterval(()=>{tick();renderSince()},1000);
+
+/* ---- copy in her notes format ---- */
+function copyText(){
+  const out=[];let day='';
+  for(const e of sorted().reverse()){
+    const d=fmtD(e.start);if(d!==day){day=d;out.push((out.length?'\n':'')+d+'\n')}
+    if(e.type==='feed'){
+      out.push(`Feedings\nStart: ${fmtT(e.start)}\nRight boob: ${e.right} minutes\nLeft boob: ${e.left} minutes\nDone: ${fmtT(e.end||e.start)}`+(e.diaper?'\n'+bum(e.diaper):'')+(e.note?'\n'+e.note:''));
+    }else out.push(`Diaper\nTime: ${fmtT(e.start)}\n${bum(e.diaper)}`);
+  }
+  const txt=out.join('\n');
+  const done=()=>{$('copyBtn').textContent='Copied!';setTimeout(()=>$('copyBtn').textContent='Copy as text',1500)};
+  try{navigator.clipboard.writeText(txt).then(done,fallback)}catch(e){fallback()}
+  function fallback(){const t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()}
+}
+/* ---- import from notes ---- */
+let impOrder='old',impAP='AM',impRes=[];
+const MON=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function setOpt(k,v){if(k==='o')impOrder=v;else impAP=v;
+  document.querySelectorAll('[data-k="'+k+'"]').forEach(c=>c.classList.toggle('sel',c.dataset.v===v));parseImport()}
+function openImport(){$('iDate').value=loc(Date.now()).slice(0,10);$('iText').value='';$('iFile').value='';
+  setOpt('o','old');setOpt('a','AM');$('ov2').classList.add('show')}
+function closeImport(){$('ov2').classList.remove('show')}
+$('iFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{$('iText').value=String(r.result);parseImport()};r.readAsText(f)});
+function parseDateLine(ln){if(ln.length>32)return null;
+  let m=ln.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?/i);
+  if(m)return new Date(+(m[3]||new Date().getFullYear()),MON.indexOf(m[1].toLowerCase()),+m[2]);
+  m=ln.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if(m){let y=m[3]?+m[3]:new Date().getFullYear();if(y<100)y+=2000;return new Date(y,+m[1]-1,+m[2])}
+  return null}
+function parseNotes(text){
+  const out=[];let cur=null,date=null;
+  const push=()=>{if(cur&&cur.t)out.push(cur);cur=null};
+  const addNote=s=>{if(s)cur.note=(cur.note?cur.note+' ':'')+s};
+  for(const raw of text.split(/\r?\n/)){
+    const ln=raw.trim();if(!ln)continue;let m;
+    if(/^feedings?:?$/i.test(ln)){push();continue}
+    if(/^diapers?:?$/i.test(ln)){push();cur={type:'diaper',l:0,r:0,diaper:'',note:'',date};continue}
+    if(m=ln.match(/^start:?\s*(.*)$/i)){push();cur={type:'feed',t:m[1],l:0,r:0,diaper:'',note:'',date};continue}
+    if(m=ln.match(/^time:?\s*(.*)$/i)){if(!cur||cur.type!=='diaper'||cur.t){push();cur={type:'diaper',l:0,r:0,diaper:'',note:'',date}}cur.t=m[1];continue}
+    const dd=parseDateLine(ln);if(dd){push();date=dd;continue}
+    if(!cur)continue;
+    if(m=ln.match(/^right\b[^:]*:\s*(\d+)?/i)){cur.r=+m[1]||0;continue}
+    if(m=ln.match(/^left\b[^:]*:\s*(\d+)?/i)){cur.l=+m[1]||0;continue}
+    if(m=ln.match(/^done:?\s*(\d{1,2}:\d{2}\s*[ap]?m?)?\s*(.*)$/i)){addNote(m[2]);continue}
+    if(/wet|pee|poo|dirty|dry/i.test(ln)){
+      const w=/wet|pee/i.test(ln),p=/poo|dirty/i.test(ln);
+      cur.diaper=w&&p?'Wet + poopy':p?'Poopy':w?'Wet':'';
+      addNote(ln.replace(/\b(wet|and|poopy|poop|poo|dirty|pee|bum|diaper|dry)\b|[+&,.]/gi,' ').replace(/\s+/g,' ').trim());
+      continue}
+    addNote(ln);
+  }
+  push();return out}
+function resolveTimes(list,startDate,ap,newestFirst){
+  if(newestFirst)list=list.slice().reverse();
+  let last=null;const res=[];
+  for(const e of list){
+    const tm=(e.t||'').match(/(\d{1,2}):(\d{2})\s*([ap])?/i);if(!tm)continue;
+    const h=+tm[1],mi=+tm[2];
+    const exp=tm[3]?tm[3].toLowerCase():(h>12||h===0?'24':null);
+    const base=e.date||(last!==null?new Date(last):startDate);
+    const y=base.getFullYear(),mo=base.getMonth(),d=base.getDate();
+    let hs=exp==='a'?[h%12]:exp==='p'?[h%12+12]:exp==='24'?[h]:[h%12,h%12+12];
+    let t=null;
+    if(last===null&&!exp){t=new Date(y,mo,d,h%12+(ap==='PM'?12:0),mi).getTime()}
+    else if(last===null){t=new Date(y,mo,d,hs[0],mi).getTime()}
+    else{outer:for(let off=0;off<6;off++)for(const hh of hs){const c=new Date(y,mo,d+off,hh,mi).getTime();if(c>=last){t=c;break outer}}}
+    if(t===null)continue;
+    last=t;
+    res.push({type:e.type,start:t,left:e.l,right:e.r,end:t+(e.l+e.r)*60000,diaper:e.diaper,note:e.note});
+  }
+  return res.sort((a,b)=>a.start-b.start)}
+function parseImport(){
+  const v=$('iDate').value;const sd=v?new Date(v+'T00:00'):new Date(new Date().setHours(0,0,0,0));
+  impRes=resolveTimes(parseNotes($('iText').value),sd,impAP,impOrder==='new');
+  const have=new Set(S.entries.map(e=>e.type+e.start));
+  impRes.forEach(e=>e.dup=have.has(e.type+e.start));
+  const fresh=impRes.filter(e=>!e.dup).length;
+  $('iPrev').innerHTML=impRes.length?impRes.map(e=>{
+    const s=e.type==='feed'?`Left ${e.left} · Right ${e.right} min`:'Diaper';
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--line);${e.dup?'opacity:.5':''}"><span class="t" style="color:var(--ink)">${fmtD(e.start)} ${fmtT(e.start)}</span><br>${s}${e.diaper?' · '+e.diaper:''}${e.note?' · '+esc(e.note):''}${e.dup?' · already in log':''}</div>`}).join(''):'Nothing recognized yet.';
+  $('iGo').textContent=fresh?`Import ${fresh} entr${fresh===1?'y':'ies'}`:'Import';
+  $('iGo').disabled=!fresh;$('iGo').style.opacity=fresh?1:.4}
+function doImport(){
+  const fresh=impRes.filter(e=>!e.dup);
+  for(const e of fresh){const o=Object.assign({id:uid()},e);delete o.dup;if(o.type!=='feed')delete o.end;S.entries.push(o)}
+  save();closeImport();render()}
+
+render();
+</script>
+</body>
+</html>
